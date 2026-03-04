@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
-import { COMMUNITY_CARDS, CHANCE_CARDS } from "./cards";
-import { TILES, TILE_COUNT } from "./board";
+import { COMMUNITY_CARDS, CHANCE_CARDS } from "./cards.js";
+import { TILES, TILE_COUNT } from "./board.js";
 import {
   Card,
   DeckState,
@@ -11,7 +11,7 @@ import {
   RollResult,
   Tile,
   TurnState
-} from "./types";
+} from "./types.js";
 
 const START_MONEY = 1500;
 const GO_REWARD = 200;
@@ -210,25 +210,29 @@ export const handleBuildHouse = (state: RoomState, playerId: string, tileIndex: 
     return;
   }
 
-  if (!ownsColorSet(state, playerId, tile.color)) {
-    return;
-  }
-
-  if (property.houses >= 5) {
-    return;
-  }
-
-  if (player.money < tile.houseCost) {
-    pushLog(state, `${player.name} tidak cukup uang untuk membangun.`, "action");
-    return;
-  }
-
-  player.money -= tile.houseCost;
-  property.houses += 1;
-  if (property.houses === 5) {
-    pushLog(state, `${player.name} membangun hotel di ${tile.name}.`, "action");
-  } else {
-    pushLog(state, `${player.name} membangun rumah di ${tile.name}.`, "action");
+  if (tile.type === "property") {
+    if (
+      "color" in tile &&
+      !ownsColorSet(state, playerId, tile.color)
+    ) {
+      return;
+    }
+    if (property.houses >= 5) {
+      return;
+    }
+    if ("houseCost" in tile && player.money < tile.houseCost) {
+      pushLog(state, `${player.name} tidak cukup uang untuk membangun.`, "action");
+      return;
+    }
+    if ("houseCost" in tile) {
+      player.money -= tile.houseCost;
+    }
+    property.houses += 1;
+    if (property.houses === 5) {
+      pushLog(state, `${player.name} membangun hotel di ${tile.name}.`, "action");
+    } else {
+      pushLog(state, `${player.name} membangun rumah di ${tile.name}.`, "action");
+    }
   }
 };
 
@@ -262,7 +266,10 @@ export const handleSellHouse = (state: RoomState, playerId: string, tileIndex: n
     return;
   }
 
-  const refund = Math.floor(tile.houseCost / 2);
+  let refund = 0;
+  if (tile.type === "property" && "houseCost" in tile) {
+    refund = Math.floor(tile.houseCost / 2);
+  }
   property.houses -= 1;
   player.money += refund;
 
@@ -571,8 +578,10 @@ const handlePropertyTile = (state: RoomState, player: Player, tile: Tile): void 
   if (tile.type !== "property") return;
   const property = state.properties[tile.index];
   if (!property.ownerId) {
-    state.turn.pendingPurchase = { tileIndex: tile.index, price: tile.price };
-    pushLog(state, `${player.name} bisa membeli ${tile.name} seharga $${tile.price}.`, "action");
+    if ((tile.type === "property" || tile.type === "railroad" || tile.type === "utility") && "price" in tile) {
+      state.turn.pendingPurchase = { tileIndex: tile.index, price: tile.price };
+      pushLog(state, `${player.name} bisa membeli ${tile.name} seharga $${tile.price}.`, "action");
+    }
     return;
   }
 
@@ -589,8 +598,10 @@ const handleRailroadTile = (state: RoomState, player: Player, tile: Tile): void 
   if (tile.type !== "railroad") return;
   const property = state.properties[tile.index];
   if (!property.ownerId) {
-    state.turn.pendingPurchase = { tileIndex: tile.index, price: tile.price };
-    pushLog(state, `${player.name} bisa membeli ${tile.name} seharga $${tile.price}.`, "action");
+    if (tile.type === "railroad" && "price" in tile) {
+      state.turn.pendingPurchase = { tileIndex: tile.index, price: tile.price };
+      pushLog(state, `${player.name} bisa membeli ${tile.name} seharga $${tile.price}.`, "action");
+    }
     return;
   }
 
@@ -608,8 +619,10 @@ const handleUtilityTile = (state: RoomState, player: Player, tile: Tile, rollTot
   if (tile.type !== "utility") return;
   const property = state.properties[tile.index];
   if (!property.ownerId) {
-    state.turn.pendingPurchase = { tileIndex: tile.index, price: tile.price };
-    pushLog(state, `${player.name} bisa membeli ${tile.name} seharga $${tile.price}.`, "action");
+    if (tile.type === "utility" && "price" in tile) {
+      state.turn.pendingPurchase = { tileIndex: tile.index, price: tile.price };
+      pushLog(state, `${player.name} bisa membeli ${tile.name} seharga $${tile.price}.`, "action");
+    }
     return;
   }
 
@@ -626,8 +639,10 @@ const handleUtilityTile = (state: RoomState, player: Player, tile: Tile, rollTot
 
 const handleTaxTile = (state: RoomState, player: Player, tile: Tile): void => {
   if (tile.type !== "tax") return;
-  player.money -= tile.tax;
-  pushLog(state, `${player.name} membayar pajak $${tile.tax}.`, "action");
+  if (tile.type === "tax" && "tax" in tile) {
+    player.money -= tile.tax;
+    pushLog(state, `${player.name} membayar pajak $${tile.tax}.`, "action");
+  }
   if (player.money < 0) {
     handleBankrupt(state, player);
   }
@@ -635,8 +650,8 @@ const handleTaxTile = (state: RoomState, player: Player, tile: Tile): void => {
 
 const countOwnedByType = (state: RoomState, ownerId: string, type: Tile["type"]): number =>
   state.players
-    .find((p) => p.id === ownerId)
-    ?.owned.filter((idx) => TILES[idx].type === type).length ?? 0;
+    .find((p: Player) => p.id === ownerId)
+    ?.owned.filter((idx: number) => TILES[idx].type === type).length ?? 0;
 
 const payRent = (
   state: RoomState,
@@ -726,7 +741,7 @@ const pushLog = (state: RoomState, message: string, type: "system" | "action"): 
 };
 
 const getPlayer = (state: RoomState, playerId: string): Player | undefined =>
-  state.players.find((p) => p.id === playerId);
+  state.players.find((p: Player) => p.id === playerId);
 
 const endTurn = (state: RoomState): void => {
   const currentIndex = state.players.findIndex((p) => p.id === state.turn.currentPlayerId);
@@ -762,11 +777,14 @@ const calculatePropertyRent = (
 ): number => {
   if (tile.type !== "property") return 0;
   const multiplier = RENT_MULTIPLIER[Math.min(houses, RENT_MULTIPLIER.length - 1)];
-  const base = tile.baseRent * multiplier;
-  if (houses === 0 && ownerId && ownsColorSet(state, ownerId, tile.color)) {
-    return base * 2;
+  if (tile.type === "property" && "baseRent" in tile) {
+    const base = tile.baseRent * multiplier;
+    if (houses === 0 && ownerId && "color" in tile && ownsColorSet(state, ownerId, tile.color)) {
+      return base * 2;
+    }
+    return base;
   }
-  return base;
+  return 0;
 };
 
 const handleBankrupt = (state: RoomState, player: Player): void => {
@@ -806,7 +824,7 @@ const drawCard = (decks: DeckState, type: "chance" | "community"): Card | null =
 };
 
 const ownsColorSet = (state: RoomState, playerId: string, color: string): boolean => {
-  const group = TILES.filter((tile) => tile.type === "property" && tile.color === color).map(
+  const group = TILES.filter((tile) => tile.type === "property" && "color" in tile && tile.color === color).map(
     (tile) => tile.index
   );
   return group.every((idx) => state.properties[idx]?.ownerId === playerId);

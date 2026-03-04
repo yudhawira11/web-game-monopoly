@@ -19,9 +19,9 @@ import {
   handleTradeRespond,
   sendChat,
   startGame
-} from "./game/engine";
-import type { RoomState, RoomSummary } from "./game/types";
-import { isSupabaseEnabled, loadRoomStates, upsertRoomState } from "./lib/supabase";
+} from "./game/engine.js";
+import type { RoomState, RoomSummary } from "./game/types.js";
+import { isSupabaseEnabled, loadRoomStates, upsertRoomState } from "./lib/supabase.js";
 
 const PORT = Number(process.env.PORT ?? 4000);
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
@@ -222,7 +222,7 @@ io.on("connection", (socket) => {
     notifyRoom(room);
   });
 
-  socket.on("trade:propose", (payload) => {
+  socket.on("trade:propose", (payload: any) => {
     if (!payload || typeof payload !== "object") return;
     handleTradePropose(room, playerId, payload);
     notifyRoom(room);

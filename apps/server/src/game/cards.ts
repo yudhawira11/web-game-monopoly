@@ -1,4 +1,4 @@
-import { Card } from "./types";
+import { Card } from "./types.js";
 
 export const CHANCE_CARDS: Card[] = [
   {
